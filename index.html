@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeMaster: Real-Time Trading Simulation</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #333;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+        canvas {
+            background-color: #222;
+            border: 1px solid #555;
+        }
+        .controls, .smart-panel {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+        }
+        .stats {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="marketCanvas" width="600" height="400"></canvas>
+<div class="controls">
+    <button id="buyButton">Buy</button>
+    <button id="sellButton">Sell</button>
+</div>
+<div class="smart-panel">
+    <label>Stop Loss: <input type="number" id="stopLoss" value="10"></label>
+    <label>Take Profit: <input type="number" id="takeProfit" value="20"></label>
+    <label>Risk to Reward: <input type="number" id="riskReward" value="2"></label>
+</div>
+<div class="stats">
+    <p id="balance">Balance: $10,000</p>
+    <p id="message">Waiting for real-time data...</p>
+</div>
+
+<script>
+    const canvas = document.getElementById('marketCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const buyButton = document.getElementById('buyButton');
+    const sellButton = document.getElementById('sellButton');
+    const balanceDisplay = document.getElementById('balance');
+    const messageDisplay = document.getElementById('message');
+    const stopLossInput = document.getElementById('stopLoss');
+    const takeProfitInput = document.getElementById('takeProfit');
+    const riskRewardInput = document.getElementById('riskReward');
+
+    let balance = 10000;
+    let isBuy = false;
+    let currentPrice = 0;
+    let tradeHistory = [];
+
+    // OANDA API Details
+    const apiKey = 'YOUR_OANDA_API_KEY';
+    const accountID = 'YOUR_OANDA_ACCOUNT_ID';
+    const symbol = 'EUR_USD';
+
+    // Function to fetch real-time data from OANDA
+    async function fetchMarketData() {
+        const url = `https://api-fxpractice.oanda.com/v3/instruments/${symbol}/candles?count=1&price=M&granularity=M1`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        const data = await response.json();
+        currentPrice = parseFloat(data.candles[0].mid.c);
+        updateMarket(currentPrice);
+    }
+
+    // Function to update the market with new price data
+    function updateMarket(price) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw price line
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height - price);
+        ctx.lineTo(canvas.width, canvas.height - price);
+        ctx.strokeStyle = '#00ff00';
+        ctx.stroke();
+
+        // Display current price
+        ctx.fillStyle = '#00ff00';
+        ctx.font = '20px Arial';
+        ctx.fillText('Price: $' + price.toFixed(4), 10, 30);
+    }
+
+    // Handle buy action
+    buyButton.addEventListener('click', () => {
+        isBuy = true;
+        executeTrade();
+    });
+
+    // Handle sell action
+    sellButton.addEventListener('click', () => {
+        isBuy = false;
+        executeTrade();
+    });
+
+    function executeTrade() {
+        const originalPrice = currentPrice;
+        const stopLoss = parseFloat(stopLossInput.value);
+        const takeProfit = parseFloat(takeProfitInput.value);
+        const riskReward = parseFloat(riskRewardInput.value);
+        const tradeEntry = {
+            action: isBuy ? 'Buy' : 'Sell',
+            entryPrice: originalPrice,
+            stopLoss: isBuy ? originalPrice - stopLoss : originalPrice + stopLoss,
+            takeProfit: isBuy ? originalPrice + takeProfit : originalPrice - takeProfit,
+            timestamp: new Date(),
+        };
+
+        // Simulate price movement (real data would require waiting)
+        simulateMarketMovement();
+
+        // Calculate trade result
+        let profit = 0;
+        if (isBuy) {
+            if (currentPrice >= tradeEntry.takeProfit) {
+                profit = takeProfit * 100;
+                messageDisplay.textContent = `Take Profit Hit! Profit: $${profit.toFixed(2)}`;
+            } else if (currentPrice <= tradeEntry.stopLoss) {
+                profit = -stopLoss * 100;
+                messageDisplay.textContent = `Stop Loss Hit! Loss: $${(-profit).toFixed(2)}`;
+            } else {
+                profit = (currentPrice - originalPrice) * 100;
+                messageDisplay.textContent = profit >= 0 ? `Profit: $${profit.toFixed(2)}` : `Loss: $${(-profit).toFixed(2)}`;
+            }
+        } else {
+            if (currentPrice <= tradeEntry.takeProfit) {
+                profit = takeProfit * 100;
+                messageDisplay.textContent = `Take Profit Hit! Profit: $${profit.toFixed(2)}`;
+            } else if (currentPrice >= tradeEntry.stopLoss) {
+                profit = -stopLoss * 100;
+                messageDisplay.textContent = `Stop Loss Hit! Loss: $${(-profit).toFixed(2)}`;
+            } else {
+                profit = (originalPrice - currentPrice) * 100;
+                messageDisplay.textContent = profit >= 0 ? `Profit: $${profit.toFixed(2)}` : `Loss: $${(-profit).toFixed(2)}`;
+            }
+        }
+
+        tradeEntry.exitPrice = currentPrice;
+        tradeEntry.profit = profit;
+        tradeHistory.push(tradeEntry);
+
+        // Update balance
+        balance += profit;
+        balanceDisplay.textContent = 'Balance: $' + balance.toFixed(2);
+
+        // Check if the game should end
+        if (balance <= 0) {
+            messageDisplay.textContent = 'Game Over! You\'ve run out of money.';
+            buyButton.disabled = true;
+            sellButton.disabled = true;
+            generateTradeReport();
+        }
+    }
+
+    // Function to simulate market movement (or use real-time updates)
+    function simulateMarketMovement() {
+        // Here you would typically wait for real-time data updates
+        // For simplicity, we'll simulate a small movement
+        currentPrice += (Math.random() - 0.5) * 0.0001;
+        updateMarket(currentPrice);
+    }
+
+    // Function to generate trade report
+    function generateTradeReport() {
+        let totalProfit = 0;
+        let wins = 0;
+        let losses = 0;
+
+        tradeHistory.forEach(trade => {
+            totalProfit += trade.profit;
+            if (trade.profit > 0) wins++;
+            else losses++;
+        });
+
+        const winLossRatio = wins / losses || 0;
+        const averageProfit = totalProfit / tradeHistory.length || 0;
+        
+        alert(`Trade Report:
+Total P&L: $${totalProfit.toFixed(2)}
+Wins: ${wins}, Losses: ${losses}
+Win/Loss Ratio: ${winLossRatio.toFixed(2)}
+Average P&L per Trade: $${averageProfit.toFixed(2)}
+Total Trades: ${tradeHistory.length}`);
+    }
+
+    // Start fetching real-time data
+    setInterval(fetchMarketData, 5000); // Fetch new data every 5 seconds
+</script>
+
+</body>
+</html>
