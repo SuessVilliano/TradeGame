@@ -71,6 +71,7 @@
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
 </head>
 <body>
 
@@ -140,6 +141,9 @@
                     type: 'time',
                     time: {
                         unit: 'minute'
+                    },
+                    ticks: {
+                        source: 'data'
                     }
                 },
                 y: {
@@ -153,6 +157,7 @@
     function generateMockData() {
         const data = [];
         let price = 100;
+        const now = Date.now();
         for (let i = 0; i < 100; i++) {
             const open = price;
             const close = price + (Math.random() - 0.5) * 2;
@@ -160,7 +165,7 @@
             const low = Math.min(open, close) - Math.random() * 2;
             price = close;
             data.push({
-                x: new Date(Date.now() - (99 - i) * 60000),  // Mock 1 minute intervals
+                x: new Date(now - (99 - i) * 60000),  // Mock 1 minute intervals
                 o: open,
                 h: high,
                 l: low,
@@ -257,8 +262,9 @@
     function simulateMarketMovement() {
         // Mock some movement
         currentPrice += (Math.random() - 0.5) * 2;
+        const now = new Date();
         marketData.push({
-            x: new Date(),
+            x: now,
             o: currentPrice,
             h: currentPrice + Math.random(),
             l: currentPrice - Math.random(),
